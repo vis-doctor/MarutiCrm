@@ -18,6 +18,30 @@ let settings = Object.assign({}, DEFAULT_SETTINGS, JSON.parse(localStorage.getIt
 // ─── STATE ───────────────────────────────────────────────────
 let orders = JSON.parse(localStorage.getItem('marutiOrders') || '[]');
 let filteredOrders = [];
+
+// ─── MASTER DATA (DROPDOWNS) ─────────────────────────────────
+const DEFAULT_MASTER = {
+  products: [
+    "ACV + Moringa - 15 Effervescent (Green Apple)", "ACV + Moringa - 15 Effervescent (Mixed Fruit)",
+    "Biotin 10000mcg - 60 Tablets", "Collagen + Vitamin C - 60 Capsules", "Fish Oil Omega-3 - 60 Softgels",
+    "Garcinia Cambogia - 60 Capsules", "Green Coffee Bean Extract - 60 Capsules", "L-Carnitine 500mg - 60 Tablets",
+    "Moringa Leaf Extract - 60 Capsules", "Multivitamin Complete - 60 Tablets", "Probiotics 10 Billion CFU - 30 Capsules",
+    "Turmeric + Curcumin - 60 Capsules", "Vitamin B12 + Folic Acid - 60 Tablets", "Vitamin D3 + K2 - 60 Softgels", "Whey Protein Isolate - 1kg"
+  ],
+  types: ["Carton", "Box", "Label", "Pouch", "Bottle", "Sachet", "Blister", "Strip", "Other"],
+  materials: [
+    "350 GSM + UV Drip-Off + Emboss", "350 GSM + Matte Lamination", "300 GSM + Gloss Lamination",
+    "300 GSM + UV Spot", "250 GSM + Foil Stamping", "BOPP + Digital Print",
+    "Kraft Paper + Flexo Print", "White PET Label", "Transparent BOPP Label", "Other"
+  ],
+  vendors: [
+    "Gujarat Print Pack", "Ahmedabad Packaging Co.", "Surat Box Works", "Rajkot Print House",
+    "Vadodara Label Studio", "Mumbai Carton Mart", "Delhi Print Solutions", "Other"
+  ]
+};
+let masterData = Object.assign({}, DEFAULT_MASTER, JSON.parse(localStorage.getItem('marutiMasterData') || '{}'));
+function saveMasterData() { localStorage.setItem('marutiMasterData', JSON.stringify(masterData)); }
+
 let currentPage = 1;
 const PAGE_SIZE = 15;
 let sortKey = 'date';
@@ -72,6 +96,7 @@ function switchView(view) {
   const titles = {
     dashboard: ['Dashboard', 'Overview & Statistics'],
     orders: ['All Orders', 'Manage, search, edit, delete and print'],
+    master: ['Master Data Management', 'Configure your dynamic dropdown categories'],
   };
   if (titles[view]) {
     document.getElementById('page-title').textContent = titles[view][0];
@@ -79,6 +104,7 @@ function switchView(view) {
   }
   if (view === 'dashboard') renderDashboard();
   if (view === 'orders') applyFilters();
+  if (view === 'master') renderMasterData();
 }
 
 // ─── NOTIFICATION PANEL ──────────────────────────────────────
@@ -236,8 +262,7 @@ function applyFilters() {
 
   filteredOrders = orders.filter(o => {
     if (activeChip && o.type !== activeChip) return false;
-    if (filterStatus === 'dispatched' && !(o.dispatchQty && Number(o.dispatchQty) >= Number(o.orderQty))) return false;
-    if (filterStatus === 'pending' && (o.dispatchQty && Number(o.dispatchQty) >= Number(o.orderQty))) return false;
+    if (filterStatus && (o.status || 'pending') !== filterStatus) return false;
     if (searchQuery) {
       const h = [o.company, o.product, o.batch, o.invoice, o.vendor, o.type, o.size, o.material].join(' ').toLowerCase();
       if (!h.includes(searchQuery)) return false;
@@ -311,7 +336,17 @@ function renderTable() {
       <td>${esc(o.vendor || '—')}</td>
       <td>${o.dispatchDate ? fmtDate(o.dispatchDate) : '—'}</td>
       <td>${esc(o.invoice || '—')}</td>
-      <td><span class="status-badge ${dispatched ? 'dispatched' : 'pending'}">${dispatched ? 'Dispatched' : 'Pending'}</span></td>
+      <td>
+        <select class="status-select ${o.status || 'pending'}" onchange="updateOrderStatus('${o.id}', this.value)">
+          <option value="pending" ${o.status === 'pending' ? 'selected' : ''}>Pending</option>
+          <option value="approval" ${o.status === 'approval' ? 'selected' : ''}>Approval</option>
+          <option value="printing" ${o.status === 'printing' ? 'selected' : ''}>Printing</option>
+          <option value="dispatch" ${o.status === 'dispatch' ? 'selected' : ''}>Dispatch</option>
+          <option value="process" ${o.status === 'process' ? 'selected' : ''}>Process</option>
+          <option value="ready" ${o.status === 'ready' ? 'selected' : ''}>Ready</option>
+          <option value="cancel" ${o.status === 'cancel' ? 'selected' : ''}>Cancel</option>
+        </select>
+      </td>
       <td>
         <div class="row-actions">
           <button class="action-btn edit"   onclick="editOrder('${o.id}')"          title="Edit">✏️</button>
@@ -384,11 +419,11 @@ function updateBulkButtons() {
   }
 }
 
-// ─── ADD / EDIT ───────────────────────────────────────────────
 function openAddModal() {
   document.getElementById('modal-title').textContent = 'Add New Order';
   document.getElementById('order-form').reset();
   document.getElementById('edit-id').value = '';
+  document.getElementById('f-status').value = 'pending';
   document.getElementById('f-date').value = new Date().toISOString().slice(0, 10);
   document.getElementById('custom-product-group').style.display = 'none';
   document.getElementById('order-modal').classList.add('open');
@@ -424,6 +459,7 @@ function editOrder(id) {
   document.getElementById('f-vendor').value = o.vendor || '';
   document.getElementById('f-dispatch-date').value = o.dispatchDate || '';
   document.getElementById('f-invoice').value = o.invoice || '';
+  document.getElementById('f-status').value = o.status || 'pending';
   document.getElementById('order-modal').classList.add('open');
 }
 
@@ -460,6 +496,7 @@ function saveOrder() {
     vendor: document.getElementById('f-vendor').value,
     dispatchDate: document.getElementById('f-dispatch-date').value,
     invoice: document.getElementById('f-invoice').value.trim(),
+    status: document.getElementById('f-status').value,
     createdAt: id ? (orders.find(x => x.id === id)?.createdAt || Date.now()) : Date.now(),
   };
 
@@ -889,6 +926,28 @@ function saveImportedOrders(newOrders) {
   showToast(`✅ Successfully imported ${newOrders.length} orders!`, 'success');
 }
 
+// ─── UPDATE ORDER STATUS (INLINE) ────────────────────────────
+function updateOrderStatus(id, newStatus) {
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+
+  o.status = newStatus;
+
+  if (newStatus === 'dispatch') {
+    o.dispatchQty = o.orderQty;
+    o.dispatchDate = new Date().toISOString().slice(0, 10);
+    showToast('🚛 Order marked as Dispatch! Quantities updated.', 'success');
+  } else if (newStatus === 'cancel') {
+    showToast('🚫 Order has been Cancelled.', 'error');
+  } else {
+    showToast(`🔄 Status updated to ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}.`, 'info');
+  }
+
+  saveData();
+  applyFilters();
+  renderDashboard();
+}
+
 
 // ─── TOAST ───────────────────────────────────────────────────
 function showToast(msg, type = 'info') {
@@ -939,6 +998,93 @@ document.addEventListener('keydown', e => {
 
 // ─── INIT ────────────────────────────────────────────────────
 (function init() {
+  populateDropdowns();
   applyFilters();
   renderDashboard();
 })();
+
+// ─── DYNAMIC DROPDOWNS ────────────────────────────────────────
+function populateDropdowns() {
+  const filling = {
+    'f-product': masterData.products,
+    'f-type': masterData.types,
+    'f-material': masterData.materials,
+    'f-vendor': masterData.vendors
+  };
+
+  for (const [id, list] of Object.entries(filling)) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const currentVal = el.value;
+    const label = id.split('-')[1].charAt(0).toUpperCase() + id.split('-')[1].slice(1);
+    
+    let html = `<option value="">— Select ${label} —</option>`;
+    list.sort().forEach(item => {
+      html += `<option value="${esc(item)}">${esc(item)}</option>`;
+    });
+    
+    if (id === 'f-product') {
+      html += `<option value="__custom__">+ Add Custom Product...</option>`;
+    }
+    
+    el.innerHTML = html;
+    el.value = currentVal;
+  }
+}
+
+// ─── MASTER DATA MANAGEMENT UI ────────────────────────────────
+function renderMasterData() {
+  const grid = document.getElementById('master-grid');
+  if (!grid) return;
+
+  const categories = [
+    { key: 'products', label: 'Products', icon: '📦' },
+    { key: 'types', label: 'Product Types', icon: '📁' },
+    { key: 'materials', label: 'Materials & Processes', icon: '🛠️' },
+    { key: 'vendors', label: 'Vendors', icon: '🏬' }
+  ];
+
+  grid.innerHTML = categories.map(cat => `
+    <div class="master-card">
+      <div class="master-card-header">
+        <span>${cat.icon}</span>
+        <span>${cat.label}</span>
+      </div>
+      <div class="master-list">
+        ${masterData[cat.key].sort().map((item, idx) => `
+          <div class="master-item">
+            <div class="master-item-text">${esc(item)}</div>
+            <div class="master-item-del" onclick="deleteMasterItem('${cat.key}', '${esc(item)}')">✕</div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="master-card-footer">
+        <input type="text" class="form-control master-add-input" id="add-${cat.key}" placeholder="Add new..." onkeydown="if(event.key==='Enter') addMasterItem('${cat.key}')" />
+        <button class="btn btn-primary btn-sm" onclick="addMasterItem('${cat.key}')">Add</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function addMasterItem(key) {
+  const input = document.getElementById('add-' + key);
+  const val = input.value.trim();
+  if (!val) return;
+  if (masterData[key].includes(val)) { showToast('Item already exists!', 'warning'); return; }
+  
+  masterData[key].push(val);
+  saveMasterData();
+  input.value = '';
+  renderMasterData();
+  populateDropdowns();
+  showToast(`Added to ${key} successfully!`, 'success');
+}
+
+function deleteMasterItem(key, val) {
+  if (!confirm(`Are you sure you want to delete "${val}" from ${key}?`)) return;
+  masterData[key] = masterData[key].filter(x => x !== val);
+  saveMasterData();
+  renderMasterData();
+  populateDropdowns();
+  showToast(`Deleted from ${key}.`, 'info');
+}
