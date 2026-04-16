@@ -317,6 +317,32 @@ body {
 .status-select.cancel      { background-color: rgba(100,116,139,0.15); color: #64748b; }
 .status-select:hover      { filter: brightness(1.1); transform: translateY(-1px); }
 .status-select:focus      { outline: none; box-shadow: 0 0 0 2px var(--primary-light); }
+.status-select option     { background-color: var(--bg-card); color: var(--text-primary); text-transform: capitalize; }
+
+/* ─── TYPE DROPDOWN COLORS ─── */
+.type-select {
+  font-size: 10px; font-weight: 700; padding: 3px 24px 3px 9px;
+  border-radius: 20px; transition: var(--transition);
+  border: none; cursor: pointer; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center; background-size: 10px;
+}
+
+.type-select.label             { background-color: rgba(239, 68, 68, 0.15);  color: #ef4444; }
+.type-select.carton            { background-color: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+.type-select.insert            { background-color: rgba(34, 197, 94, 0.15);  color: #22c55e; }
+.type-select.sleeve            { background-color: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+.type-select.alu-foil          { background-color: rgba(236, 72, 153, 0.15); color: #ec4899; }
+.type-select.digital-sheets    { background-color: rgba(168, 85, 247, 0.15); color: #a855f7; }
+.type-select.art-card          { background-color: rgba(20, 184, 166, 0.15); color: #14b8a6; }
+.type-select.business-card     { background-color: rgba(14, 165, 233, 0.15); color: #0ea5e9; }
+.type-select.latterhead        { background-color: rgba(132, 204, 22, 0.15); color: #84cc16; }
+.type-select.mar-material      { background-color: rgba(234, 179, 8, 0.15);  color: #eab308; }
+.type-select.other             { background-color: rgba(100, 116, 139, 0.15); color: #64748b; }
+.type-select.roll-foam-label   { background-color: rgba(244, 63, 94, 0.15);  color: #f43f5e; }
+.type-select.foil              { background-color: rgba(6, 182, 212, 0.15);  color: #06b6d4; }
+.type-select.standy-pouch      { background-color: rgba(163, 230, 53, 0.15); color: #a3e635; }
+.type-select.paper-tube        { background-color: rgba(101, 163, 13, 0.15); color: #65a30d; }
 
 .product-stat-item { padding: 10px 0; border-bottom: 1px solid var(--border); }
 .product-stat-item:last-child { border-bottom: none; }

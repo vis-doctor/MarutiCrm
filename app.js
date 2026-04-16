@@ -28,7 +28,11 @@ const DEFAULT_MASTER = {
     "Moringa Leaf Extract - 60 Capsules", "Multivitamin Complete - 60 Tablets", "Probiotics 10 Billion CFU - 30 Capsules",
     "Turmeric + Curcumin - 60 Capsules", "Vitamin B12 + Folic Acid - 60 Tablets", "Vitamin D3 + K2 - 60 Softgels", "Whey Protein Isolate - 1kg"
   ],
-  types: ["Carton", "Box", "Label", "Pouch", "Bottle", "Sachet", "Blister", "Strip", "Other"],
+  types: [
+    "Label", "Carton", "Insert", "Sleeve", "Alu. Foil", "Digital Sheets", "Art Card",
+    "Business Card", "Latterhead", "Mar. Material", "Roll Foam Label", "Foil",
+    "Standy Pouch", "Paper Tube", "Other"
+  ],
   materials: [
     "350 GSM + UV Drip-Off + Emboss", "350 GSM + Matte Lamination", "300 GSM + Gloss Lamination",
     "300 GSM + UV Spot", "250 GSM + Foil Stamping", "BOPP + Digital Print",
@@ -37,9 +41,11 @@ const DEFAULT_MASTER = {
   vendors: [
     "Gujarat Print Pack", "Ahmedabad Packaging Co.", "Surat Box Works", "Rajkot Print House",
     "Vadodara Label Studio", "Mumbai Carton Mart", "Delhi Print Solutions", "Other"
-  ]
+  ],
+  vendorGst: {} // { vendorName: gstNumber }
 };
-let masterData = Object.assign({}, DEFAULT_MASTER, JSON.parse(localStorage.getItem('marutiMasterData') || '{}'));
+let masterData = Object.assign({ vendorGst: {} }, DEFAULT_MASTER, JSON.parse(localStorage.getItem('marutiMasterData') || '{}'));
+if (!masterData.vendorGst) masterData.vendorGst = {};
 function saveMasterData() { localStorage.setItem('marutiMasterData', JSON.stringify(masterData)); }
 
 let currentPage = 1;
@@ -324,7 +330,11 @@ function renderTable() {
       <td>${fmtDate(o.date)}</td>
       <td class="bold">${esc(o.company)}</td>
       <td style="max-width:200px;white-space:normal;line-height:1.4;">${esc(o.product)}</td>
-      <td><span class="status-badge processing">${esc(o.type)}</span></td>
+      <td>
+        <select class="type-select ${typeToClass(o.type)}" style="text-transform: capitalize;" onchange="updateOrderType('${o.id}', this.value, this)">
+          ${masterData.types.sort().map(t => `<option value="${esc(t)}" ${o.type === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}
+        </select>
+      </td>
       <td>${esc(o.size || '—')}</td>
       <td style="max-width:180px;white-space:normal;font-size:11px;">${esc(o.material || '—')}</td>
       <td class="bold">${formatNum(o.orderQty)}</td>
@@ -426,6 +436,7 @@ function openAddModal() {
   document.getElementById('f-status').value = 'pending';
   document.getElementById('f-date').value = new Date().toISOString().slice(0, 10);
   document.getElementById('custom-product-group').style.display = 'none';
+  document.getElementById('f-party-gst').value = '';
   document.getElementById('order-modal').classList.add('open');
 }
 
@@ -460,6 +471,7 @@ function editOrder(id) {
   document.getElementById('f-dispatch-date').value = o.dispatchDate || '';
   document.getElementById('f-invoice').value = o.invoice || '';
   document.getElementById('f-status').value = o.status || 'pending';
+  document.getElementById('f-party-gst').value = o.partyGst || '';
   document.getElementById('order-modal').classList.add('open');
 }
 
@@ -497,6 +509,7 @@ function saveOrder() {
     dispatchDate: document.getElementById('f-dispatch-date').value,
     invoice: document.getElementById('f-invoice').value.trim(),
     status: document.getElementById('f-status').value,
+    partyGst: (document.getElementById('f-party-gst').value || '').trim().toUpperCase(),
     createdAt: id ? (orders.find(x => x.id === id)?.createdAt || Date.now()) : Date.now(),
   };
 
@@ -609,6 +622,7 @@ function generateChallan(o, sn) {
       <td style="padding:10px 12px;width:60%;vertical-align:top;border-right:1px solid #999;">
         <div style="font-size:8pt;color:#666;margin-bottom:2px;">M/s.</div>
         <div style="font-size:14pt;font-weight:700;color:#1d3557;">${esc(o.company)}</div>
+        ${o.partyGst ? `<div style="font-size:8pt;color:#444;margin-top:3px;">GST No.: <strong>${esc(o.partyGst)}</strong></div>` : ''}
       </td>
       <td style="padding:0;vertical-align:top;width:40%;">
         <table style="width:100%;border-collapse:collapse;font-size:9pt;">
@@ -800,7 +814,7 @@ function exportCSV() {
       o.batch || '', o.vendor || '',
       o.dispatchDate ? fmtDate(o.dispatchDate) : '',
       o.invoice || '',
-      dispatched ? 'Dispatched' : 'Pending'
+      o.status || 'pending'
     ].map(v => '"' + String(v).replace(/"/g, '""') + '"');
   });
 
@@ -876,9 +890,10 @@ function mapImportedData(data) {
     rate: ['rate', 'price', 'rate (rs)'],
     otherCharge: ['other charge', 'other', 'other charge (rs)'],
     batch: ['batch', 'batch no.', 'p.o. no.', 'po'],
-    vendor: ['vendor', 'supplier'],
+    vendor: ['vendor', 'supplier', 'vendor name'],
     dispatchDate: ['dispatch date'],
-    invoice: ['invoice', 'invoice no.', 'bill no.']
+    invoice: ['invoice', 'invoice no.', 'bill no.'],
+    status: ['status', 'order status', 'stage']
   };
 
   const results = [];
@@ -908,7 +923,19 @@ function mapImportedData(data) {
       order[key] = val;
     }
 
-    // Default status logic (if missing in file)
+    // Normalize status to valid options
+    const validStatuses = ['pending', 'approval', 'printing', 'dispatch', 'process', 'ready', 'cancel'];
+    const rawStatus = String(order.status || '').toLowerCase().trim();
+    // Allow common aliases from old exports
+    const statusMap = {
+      'dispatched': 'dispatch', 'delivered': 'dispatch',
+      'processing': 'process', 'in process': 'process',
+      'in printing': 'printing', 'printed': 'printing',
+      'approved': 'approval', 'cancelled': 'cancel', 'canceled': 'cancel',
+    };
+    order.status = statusMap[rawStatus] || (validStatuses.includes(rawStatus) ? rawStatus : 'pending');
+
+    // Default date
     if (!order.date) order.date = new Date().toISOString().split('T')[0];
     if (order.company && order.product) {
       results.push(order);
@@ -946,6 +973,26 @@ function updateOrderStatus(id, newStatus) {
   saveData();
   applyFilters();
   renderDashboard();
+}
+
+function updateOrderType(id, newType, el) {
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+  o.type = newType;
+  
+  if (el) {
+    el.className = 'type-select ' + typeToClass(newType);
+  }
+
+  saveData();
+  applyFilters();
+  renderDashboard();
+  showToast(`✅ Type updated to ${newType}.`, 'success');
+}
+
+function typeToClass(type) {
+  if (!type) return 'other';
+  return type.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
 
@@ -998,6 +1045,13 @@ document.addEventListener('keydown', e => {
 
 // ─── INIT ────────────────────────────────────────────────────
 (function init() {
+  // Migration: Update Product Types to new list from User (One-time)
+  if (!localStorage.getItem('maruti_mig_v1_types')) {
+    masterData.types = [...DEFAULT_MASTER.types];
+    saveMasterData();
+    localStorage.setItem('maruti_mig_v1_types', 'true');
+  }
+
   populateDropdowns();
   applyFilters();
   renderDashboard();
@@ -1032,7 +1086,6 @@ function populateDropdowns() {
   }
 }
 
-// ─── MASTER DATA MANAGEMENT UI ────────────────────────────────
 function renderMasterData() {
   const grid = document.getElementById('master-grid');
   if (!grid) return;
@@ -1041,7 +1094,7 @@ function renderMasterData() {
     { key: 'products', label: 'Products', icon: '📦' },
     { key: 'types', label: 'Product Types', icon: '📁' },
     { key: 'materials', label: 'Materials & Processes', icon: '🛠️' },
-    { key: 'vendors', label: 'Vendors', icon: '🏬' }
+    { key: 'vendors', label: 'Vendors', icon: '🏬', hasGst: true }
   ];
 
   grid.innerHTML = categories.map(cat => `
@@ -1049,18 +1102,32 @@ function renderMasterData() {
       <div class="master-card-header">
         <span>${cat.icon}</span>
         <span>${cat.label}</span>
+        ${cat.hasGst ? '<span style="font-size:10px;color:var(--text-muted);margin-left:auto;">Name + GST No. (optional)</span>' : ''}
       </div>
       <div class="master-list">
-        ${masterData[cat.key].sort().map((item, idx) => `
+        ${masterData[cat.key].sort().map((item) => {
+          const gst = cat.hasGst ? (masterData.vendorGst?.[item] || '') : '';
+          return `
           <div class="master-item">
-            <div class="master-item-text">${esc(item)}</div>
+            <div style="flex:1;min-width:0;">
+              <div class="master-item-text">${esc(item)}</div>
+              ${gst ? `<div style="font-size:10px;color:var(--text-muted);margin-top:1px;">GST: ${esc(gst)}</div>` : ''}
+            </div>
             <div class="master-item-del" onclick="deleteMasterItem('${cat.key}', '${esc(item)}')">✕</div>
-          </div>
-        `).join('')}
+          </div>`;
+        }).join('')}
       </div>
-      <div class="master-card-footer">
-        <input type="text" class="form-control master-add-input" id="add-${cat.key}" placeholder="Add new..." onkeydown="if(event.key==='Enter') addMasterItem('${cat.key}')" />
-        <button class="btn btn-primary btn-sm" onclick="addMasterItem('${cat.key}')">Add</button>
+      <div class="master-card-footer" style="${cat.hasGst ? 'flex-direction:column;gap:6px;' : ''}">
+        ${cat.hasGst ? `
+          <div style="display:flex;gap:6px;">
+            <input type="text" class="form-control master-add-input" id="add-${cat.key}" placeholder="Vendor name..." style="flex:2;" />
+            <input type="text" class="form-control master-add-input" id="add-${cat.key}-gst" placeholder="GST No. (optional)" style="flex:2;text-transform:uppercase;" maxlength="15" />
+            <button class="btn btn-primary btn-sm" onclick="addMasterItem('${cat.key}')">Add</button>
+          </div>
+        ` : `
+          <input type="text" class="form-control master-add-input" id="add-${cat.key}" placeholder="Add new..." onkeydown="if(event.key==='Enter') addMasterItem('${cat.key}')" />
+          <button class="btn btn-primary btn-sm" onclick="addMasterItem('${cat.key}')">Add</button>
+        `}
       </div>
     </div>
   `).join('');
@@ -1073,18 +1140,40 @@ function addMasterItem(key) {
   if (masterData[key].includes(val)) { showToast('Item already exists!', 'warning'); return; }
   
   masterData[key].push(val);
+
+  // Handle vendor GST
+  if (key === 'vendors') {
+    const gstInput = document.getElementById('add-' + key + '-gst');
+    if (gstInput) {
+      const gst = gstInput.value.trim().toUpperCase();
+      if (gst) masterData.vendorGst[val] = gst;
+      gstInput.value = '';
+    }
+  }
+
   saveMasterData();
   input.value = '';
   renderMasterData();
   populateDropdowns();
-  showToast(`Added to ${key} successfully!`, 'success');
+  showToast(`Added successfully!`, 'success');
 }
 
 function deleteMasterItem(key, val) {
-  if (!confirm(`Are you sure you want to delete "${val}" from ${key}?`)) return;
+  if (!confirm(`Are you sure you want to delete "${val}"?`)) return;
   masterData[key] = masterData[key].filter(x => x !== val);
+  if (key === 'vendors' && masterData.vendorGst) delete masterData.vendorGst[val];
   saveMasterData();
   renderMasterData();
   populateDropdowns();
-  showToast(`Deleted from ${key}.`, 'info');
+  showToast(`Deleted successfully.`, 'info');
+}
+
+// ─── AUTO-FILL VENDOR GST ────────────────────────────────────
+function autoFillVendorGst(vendorName) {
+  const gstField = document.getElementById('f-party-gst');
+  if (!gstField) return;
+  const gst = masterData.vendorGst?.[vendorName] || '';
+  if (gst && !gstField.value) {
+    gstField.value = gst;
+  }
 }
