@@ -939,16 +939,6 @@ document.addEventListener('keydown', e => {
 
 // ─── INIT ────────────────────────────────────────────────────
 (function init() {
-  if (!orders.length) {
-    orders = [
-      { id: genId(), company: 'Vital Wellness Ltd.', date: '2026-04-01', product: 'ACV + Moringa - 15 Effervescent (Green Apple)', type: 'Carton', size: '36 x 36 x 150 mm', material: '350 GSM + UV Drip-Off + Emboss', orderQty: '30000', dispatchQty: '30000', rate: '2.50', otherCharge: '5000', batch: 'VW102026', vendor: 'Gujarat Print Pack', dispatchDate: '2026-04-05', invoice: 'INV-2026-001', createdAt: Date.now() - 864e5 * 5 },
-      { id: genId(), company: 'HealthFirst Pvt. Ltd.', date: '2026-03-25', product: 'Biotin 10000mcg - 60 Tablets', type: 'Box', size: '100 x 80 x 30 mm', material: '300 GSM + Matte Lamination', orderQty: '15000', dispatchQty: '', rate: '3.20', otherCharge: '2000', batch: 'HF032026', vendor: 'Ahmedabad Packaging Co.', dispatchDate: '', invoice: '', createdAt: Date.now() - 864e5 * 10 },
-      { id: genId(), company: 'NutriCare Exports', date: '2026-03-18', product: 'Whey Protein Isolate - 1kg', type: 'Pouch', size: '220 x 300 mm', material: 'BOPP + Digital Print', orderQty: '5000', dispatchQty: '5000', rate: '8.75', otherCharge: '', batch: 'NC032026', vendor: 'Surat Box Works', dispatchDate: '2026-03-22', invoice: 'INV-2026-089', createdAt: Date.now() - 864e5 * 18 },
-      { id: genId(), company: 'Wellness World Co.', date: '2026-03-10', product: 'Collagen + Vitamin C - 60 Capsules', type: 'Label', size: '80 x 120 mm', material: 'White PET Label', orderQty: '50000', dispatchQty: '25000', rate: '0.95', otherCharge: '3500', batch: 'WW032026', vendor: 'Rajkot Print House', dispatchDate: '2026-03-20', invoice: 'INV-2026-075', createdAt: Date.now() - 864e5 * 25 },
-      { id: genId(), company: 'Vital Wellness Ltd.', date: '2026-02-28', product: 'Vitamin D3 + K2 - 60 Softgels', type: 'Carton', size: '50 x 50 x 90 mm', material: '300 GSM + Gloss Lamination', orderQty: '20000', dispatchQty: '20000', rate: '2.10', otherCharge: '', batch: 'VW022026', vendor: 'Gujarat Print Pack', dispatchDate: '2026-03-05', invoice: 'INV-2026-052', createdAt: Date.now() - 864e5 * 40 },
-    ];
-    saveData();
-  }
   applyFilters();
   renderDashboard();
 })();
